@@ -258,6 +258,13 @@ __fastcall TMainF::TMainF(TComponent* Owner)
     Page_Position=-1;
     Caption=MEDIAINFO_TITLE;
 
+    //Set Edge WebView2 UDF directory environment variable
+    Ztring UserDataDir=Prefs->BaseFolder;
+    UserDataDir.resize(UserDataDir.size()-1);
+    UserDataDir=UserDataDir.substr(0, UserDataDir.rfind(__T("\\"))+1);
+    UserDataDir+=__T("WebView2");
+    SetEnvironmentVariable(__T("WEBVIEW2_USER_DATA_FOLDER"), UserDataDir.c_str());
+
     //Configuration of MediaInfoLib
     if (I == NULL)
         I = new MediaInfoList;
@@ -1006,34 +1013,36 @@ void __fastcall TMainF::Refresh(TTabSheet *Page)
     else if (Page==Page_HTML)
     {
         I->Option_Static(__T("Inform"), __T("HTML"));
+
+        //Creating file
+        File F;
+        if (FileName_Temp==__T(""))
+        {
+            FileName_Temp=FileName::TempFileName_Create(__T("MI_"));
+            File::Delete(FileName_Temp);
+            FileName_Temp+=__T(".html");
+        }
+        F.Create(FileName_Temp, true);
         if (FilesCount>0)
         {
-            //Creating file
             Ztring S1=I->Inform().c_str();
-            File F;
             S1=InjectHTMLStyle(I->Inform().c_str());
-            if (FileName_Temp==__T(""))
-            {
-                FileName_Temp=FileName::TempFileName_Create(__T("MI_"));
-                File::Delete(FileName_Temp);
-                FileName_Temp+=__T(".html");
-            }
-            F.Create(FileName_Temp, true);
             F.Write(S1);
-            F.Close();
-            //Navigate
-            Page_HTML_HTML->Navigate((MediaInfoNameSpace::Char*)FileName_Temp.c_str());
         }
         else
         {
             Ztring TempA; TempA=Prefs->Translate(__T("At least one file"));
             Ztring Temp;
-            Temp+=L"about:<html><head></head><body>";
+            Temp+=L"<!DOCTYPE html><html><head></head><body>";
             Temp+=TempA.To_Unicode();
             Temp+=L"</body></html>";
             Temp=InjectHTMLStyle(Temp.c_str());
-            Page_HTML_HTML->Navigate((MediaInfoNameSpace::Char*)Temp.c_str());
+            F.Write(Temp);
         }
+        F.Close();
+
+        //Navigate
+        Page_HTML_HTML->Navigate((MediaInfoNameSpace::Char*)FileName_Temp.c_str());
     }
 
     //Custom
