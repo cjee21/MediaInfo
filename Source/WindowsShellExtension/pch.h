@@ -15,18 +15,13 @@
 
 #include <shlobj_core.h>
 #include <shlwapi.h>
+#pragma comment(lib, "shlwapi.lib")
 
-// Windows Runtime C++ Template Library (WRL)
-#include <wrl/client.h>
-#include <wrl/implements.h>
-#include <wrl/module.h>
+// C++/WinRT
+#include <winrt/Windows.Foundation.Collections.h>
 
 // Windows Implementation Libraries (WIL)
-#include "wil/stl.h"
-#include "wil/win32_helpers.h"
-
-// Added to resolve linking errors
-#pragma comment(lib, "runtimeobject.lib")
-#pragma comment(lib, "shlwapi.lib")
+#include <wil/stl.h>
+#include <wil/win32_helpers.h>
 
 #endif //PCH_H

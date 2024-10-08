@@ -4,14 +4,6 @@
 
 #include "pch.h"
 
-using Microsoft::WRL::ClassicCom;
-using Microsoft::WRL::ComPtr;
-using Microsoft::WRL::InhibitRoOriginateError;
-using Microsoft::WRL::Module;
-using Microsoft::WRL::ModuleType;
-using Microsoft::WRL::RuntimeClass;
-using Microsoft::WRL::RuntimeClassFlags;
-
 constexpr const wchar_t* menu_entry_title = L"MediaInfo";
 constexpr const wchar_t* exe_filename = L"MediaInfo.exe";
 
@@ -76,7 +68,7 @@ namespace {
 
 }
 
-class __declspec(uuid("20669675-b281-4c4f-94fb-cb6fd3995545")) ExplorerCommandHandler final : public RuntimeClass<RuntimeClassFlags<ClassicCom | InhibitRoOriginateError>, IExplorerCommand> {
+struct ExplorerCommandHandler : public winrt::implements<ExplorerCommandHandler, IExplorerCommand> {
 public:
     // IExplorerCommand implementation:
 
@@ -135,8 +127,8 @@ public:
             auto command = wil::str_printf<std::wstring>(LR"-("%s")-", module_path.c_str()); // Path to application.exe
             // Add multiple selected files/folders to cmd line as parameters
             for (DWORD i = 0; i < count; ++i) {
-                ComPtr<IShellItem> item;
-                auto result = items->GetItemAt(i, &item);
+                winrt::com_ptr<IShellItem> item;
+                auto result = items->GetItemAt(i, item.put());
                 if (SUCCEEDED(result)) {
                     wil::unique_cotaskmem_string path;
                     result = item->GetDisplayName(SIGDN_FILESYSPATH, &path);
@@ -166,22 +158,48 @@ public:
     }
 };
 
-CoCreatableClass(ExplorerCommandHandler)
-CoCreatableClassWrlCreatorMapInclude(ExplorerCommandHandler)
+struct DECLSPEC_UUID("20669675-b281-4c4f-94fb-cb6fd3995545") ClassFactory : public winrt::implements<ClassFactory, IClassFactory> {
+public:
+
+    IFACEMETHODIMP CreateInstance(_In_opt_ IUnknown * pUnkOuter, _In_ REFIID riid, _COM_Outptr_ void** ppvObject) noexcept override {
+        try {
+            return winrt::make<ExplorerCommandHandler>()->QueryInterface(riid, ppvObject);
+        }
+        catch (...) {
+            return winrt::to_hresult();
+        }
+    }
+
+    IFACEMETHODIMP LockServer(_In_ BOOL fLock) noexcept override {
+        if (fLock)
+            ++winrt::get_module_lock();
+        else
+            --winrt::get_module_lock();
+        return S_OK;
+    }
+};
 
 _Check_return_
 STDAPI DllGetClassObject(_In_ REFCLSID rclsid, _In_ REFIID riid, _Outptr_ LPVOID* ppv) {
     if (ppv == nullptr)
         return E_POINTER;
     *ppv = nullptr;
-    return Module<ModuleType::InProc>::GetModule().GetClassObject(rclsid, riid, ppv);
+    if (riid != IID_IClassFactory && riid != IID_IUnknown)
+        return E_NOINTERFACE;
+    if (rclsid != __uuidof(ClassFactory))
+        return E_INVALIDARG;
+    try {
+        return winrt::make<ClassFactory>()->QueryInterface(riid, ppv);
+    }
+    catch (...) {
+        return winrt::to_hresult();
+    }
 }
 
 __control_entrypoint(DllExport)
 STDAPI DllCanUnloadNow(void) {
-    return Module<ModuleType::InProc>::GetModule().GetObjectCount() == 0 ? S_OK : S_FALSE;
-}
-
-STDAPI DllGetActivationFactory(_In_ HSTRING activatableClassId, _Out_ IActivationFactory** factory) {
-    return Module<ModuleType::InProc>::GetModule().GetActivationFactory(activatableClassId, factory);
+    if (winrt::get_module_lock())
+        return S_FALSE;
+    winrt::clear_factory_cache();
+    return S_OK;
 }
