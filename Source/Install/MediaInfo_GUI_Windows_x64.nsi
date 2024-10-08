@@ -136,14 +136,24 @@ Section "SectionPrincipale" SEC01
   CreateShortCut "$SMPROGRAMS\MediaInfo.lnk" "$INSTDIR\MediaInfo.exe" "" "" "" "" "" "Convenient unified display of the most relevant technical and tag data for video and audio files"
   SetOutPath "$INSTDIR"
   File "/oname=MediaInfo.exe" "..\..\Project\BCB\GUI\Win64\Release\MediaInfo_GUI.exe"
-  File "..\..\..\MediaInfoLib\Project\MSVC2019\x64\Release\MediaInfo_InfoTip.dll"
-  File "..\..\..\MediaInfoLib\Project\MSVC2019\x64\Release\MediaInfo.dll"
-  File "C:\Program Files (x86)\Embarcadero\Studio\22.0\Redist\win64\WebView2Loader.dll"
+  File "..\..\..\MediaInfoLib\Project\MSVC2022\x64\Release\MediaInfo_InfoTip.dll"
+  File "..\..\..\MediaInfoLib\Project\MSVC2022\x64\Release\MediaInfo.dll"
+  File "C:\Program Files (x86)\Embarcadero\Studio\23.0\Redist\win64\WebView2Loader.dll"
   File "$%BPATH%\Windows\libcurl\x64\Release\LIBCURL.DLL"
   File "$%BPATH%\Windows\libcurl\curl-ca-bundle.crt"
   File "/oname=History.txt" "..\..\History_GUI.txt"
   File "..\..\License.html"
   File "/oname=ReadMe.txt" "..\..\Release\ReadMe_GUI_Windows.txt"
+  ${If} ${AtLeastWin11}
+    nsExec::Exec 'powershell -Command "Get-AppxPackage -all MediaInfo | Remove-AppxPackage -AllUsers"' ;Remove previous version
+    Pop $0
+    File "..\..\Project\MSVC2022\x64\Release\MediaInfo_SparsePackage.msix"
+    File "..\..\Project\MSVC2022\x64\Release\MediaInfo_PackageHelper.dll"
+    File "..\..\Project\MSVC2022\x64\Release\MediaInfo_WindowsShellExtension.dll"
+    File "..\WindowsSparsePackage\Resources\resources.pri"
+    SetOutPath "$INSTDIR\Assets"
+    File "..\WindowsSparsePackage\Resources\Assets\*.png"
+  ${EndIf}
   SetOverwrite try
   SetOutPath "$INSTDIR\Plugin\Custom"
   File "..\Resource\Plugin\Custom\*.csv"
@@ -181,7 +191,12 @@ Section -Post
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayVersion"  "${PRODUCT_VERSION}"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "URLInfoAbout"    "${PRODUCT_WEB_SITE}"
   Exec 'regsvr32 "$INSTDIR\MediaInfo_InfoTip.dll" /s'
-  !insertmacro MediaInfo_Extensions_Install
+
+  ${IfNot} ${AtLeastWin11}
+    !insertmacro MediaInfo_Extensions_Install
+  ${Else}
+    !insertmacro MediaInfo_Extensions_Uninstall
+  ${EndIf}
 
   ${If} ${AtLeastWin7}
     ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
@@ -204,6 +219,17 @@ Section Uninstall
   IfFileExists "$INSTDIR\ffmpeg_plugin_uninst.exe" 0 +3
     ExecWait '"$INSTDIR\ffmpeg_plugin_uninst.exe" /S _?=$INSTDIR'
     Delete "$INSTDIR\ffmpeg_plugin_uninst.exe"
+
+  ${If} ${AtLeastWin11}
+    nsExec::Exec 'powershell -Command "Get-AppxPackage -all MediaInfo | Remove-AppxPackage -AllUsers"'
+    Pop $0
+    !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo_PackageHelper.dll"
+    !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo_WindowsShellExtension.dll"
+    Delete "$INSTDIR\MediaInfo_SparsePackage.msix"
+    Delete "$INSTDIR\resources.pri"
+    Delete "$INSTDIR\Assets\*.png"
+    RMDir "$INSTDIR\Assets"
+  ${EndIf}
 
   !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo.exe"
   !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo.dll"
