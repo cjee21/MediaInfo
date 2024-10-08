@@ -360,6 +360,11 @@ void __fastcall TPreferencesF::CB_CheckUpdateClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesF::CB_InscrireShellClick(TObject *Sender)
 {
+    // Disabled on Windows 11
+    if (TOSVersion::Major == 10 && TOSVersion::Build >= 22000) {
+        return;
+    }
+
     //Shell extension
     if (CB_InscrireShell->Checked)
         Prefs->Config(__T("ShellExtension"), 1)=__T("1");
@@ -370,12 +375,16 @@ void __fastcall TPreferencesF::CB_InscrireShellClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesF::CB_InscrireShell_FolderClick(TObject *Sender)
 {
+    // Disabled on Windows 11
+    if (TOSVersion::Major == 10 && TOSVersion::Build >= 22000) {
+        return;
+    }
+
     //Shell extension
     if (CB_InscrireShell_Folder->Checked)
         Prefs->Config(__T("ShellExtension_Folder"), 1)=__T("1");
     else
         Prefs->Config(__T("ShellExtension_Folder"), 1)=__T("0");
-
 }
 
 //---------------------------------------------------------------------------
@@ -624,8 +633,31 @@ void __fastcall TPreferencesF::Setup_GeneralShow(TObject *Sender)
 {
     ComboBox_Update(General_Language_Sel, Prefs_Language);
     CB_CheckUpdate->Checked=Prefs->Config(__T("CheckUpdate")).To_int32s();
-    CB_InscrireShell->Checked=Prefs->Config(__T("ShellExtension")).To_int32s(); //Lecture Shell extension
-    CB_InscrireShell_Folder->Checked=Prefs->Config(__T("ShellExtension_Folder")).To_int32s(); //Lecture Shell extension
+
+    if (TOSVersion::Major == 10 && TOSVersion::Build >= 22000) {
+        // If on Windows 11, modern shell extension is used which depends on installation
+        CB_InscrireShell->Enabled = false;
+        CB_InscrireShell_Folder->Enabled = false;
+        // Show unchecked for portable version
+        CB_InscrireShell->Checked = false;
+        CB_InscrireShell_Folder->Checked = false;
+        // Show checked for installed version
+        TRegistry* Reg_MediaInfoInstalled = new TRegistry;
+        Reg_MediaInfoInstalled->RootKey = HKEY_LOCAL_MACHINE;
+        try {
+            if (Reg_MediaInfoInstalled->OpenKeyReadOnly(
+                __T("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MediaInfo"))) {
+                    CB_InscrireShell->Checked = true;
+                    CB_InscrireShell_Folder->Checked = true;
+                    Reg_MediaInfoInstalled->CloseKey();
+                }
+        } catch (...) {}
+    } else {
+        // Legacy shell extension for other Windows versions
+        CB_InscrireShell->Checked=Prefs->Config(__T("ShellExtension")).To_int32s(); //Lecture Shell extension
+        CB_InscrireShell_Folder->Checked=Prefs->Config(__T("ShellExtension_Folder")).To_int32s(); //Lecture Shell extension
+    }
+
     CB_InfoTip->Checked=Prefs->Config(__T("ShellInfoTip")).To_int32s(); //Lecture Shell extension
 }
 

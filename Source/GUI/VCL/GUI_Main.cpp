@@ -48,7 +48,7 @@ TMainF *MainF;
 #include <ZenLib/FileName.h>
 #include <ZenLib/OS_Utils.h>
 
-#include <filesystem> // To remove when "Quick temporary fix for translations after an update" is removed
+#include <filesystem>
 
 using namespace MediaInfoNameSpace;
 using namespace ZenLib;
@@ -312,6 +312,24 @@ void __fastcall TMainF::GUI_Configure()
         delete PreferencesF;
         Prefs->Config_Load(); //Again...
         #endif //MEDIAINFOGUI_PREFS_NO
+
+        // Windows 11 File Explorer context menu shell extension installation
+        if (TOSVersion::Major == 10 && TOSVersion::Build >= 22000) {
+            typedef HRESULT (__stdcall *DLLFunc)();
+            namespace fs = std::filesystem;
+            fs::path ExePath = Application->ExeName.c_str();
+            fs::path DLLPath = ExePath.parent_path() / "MediaInfo_PackageHelper.dll";
+            HMODULE hDLL = LoadLibrary(DLLPath.c_str()); // use fully qualified path to prevent DLL preloading attacks
+            if (hDLL != NULL) {
+                DLLFunc lpfnDllRegisterSparsePackage = reinterpret_cast<DLLFunc>(GetProcAddress(hDLL, "RegisterSparsePackage"));
+                if (!lpfnDllRegisterSparsePackage)
+                    FreeLibrary(hDLL);
+                else {
+                    lpfnDllRegisterSparsePackage();
+                    FreeLibrary(hDLL);
+                }
+            }
+        }
 
         //Quick temporary fix for translations after an update
         //----------------------------------------------------------------------------------------------
