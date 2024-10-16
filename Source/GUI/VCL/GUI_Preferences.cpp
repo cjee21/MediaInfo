@@ -342,6 +342,20 @@ void __fastcall TPreferencesF::Language_EditClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesF::OKClick(TObject *Sender)
 {
+    if (TOSVersion::Major == 10 && TOSVersion::Build >= 22000) {
+        TRegistry* Reg_HideExplorerContextMenu = new TRegistry(KEY_WRITE);
+        try {
+            if (Reg_HideExplorerContextMenu->OpenKey(__T("Software\\MediaArea\\MediaInfo"), true)) {
+                if (CB_InscrireShell->Checked) {
+                    Reg_HideExplorerContextMenu->DeleteValue("HideExplorerContextMenu");
+                }
+                else {
+                    Reg_HideExplorerContextMenu->WriteInteger("HideExplorerContextMenu", 1);
+                }
+            }
+        } catch (...) {}
+        delete Reg_HideExplorerContextMenu;
+    }
     Prefs->Config.Save();
 }
 
@@ -360,6 +374,11 @@ void __fastcall TPreferencesF::CB_CheckUpdateClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesF::CB_InscrireShellClick(TObject *Sender)
 {
+    // Handle differently on Windows 11
+    if (TOSVersion::Major == 10 && TOSVersion::Build >= 22000) {
+        return;
+    }
+
     //Shell extension
     if (CB_InscrireShell->Checked)
         Prefs->Config(__T("ShellExtension"), 1)=__T("1");
@@ -370,12 +389,16 @@ void __fastcall TPreferencesF::CB_InscrireShellClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesF::CB_InscrireShell_FolderClick(TObject *Sender)
 {
+    // Cannot be changed on Windows 11
+    if (TOSVersion::Major == 10 && TOSVersion::Build >= 22000) {
+        return;
+    }
+
     //Shell extension
     if (CB_InscrireShell_Folder->Checked)
         Prefs->Config(__T("ShellExtension_Folder"), 1)=__T("1");
     else
         Prefs->Config(__T("ShellExtension_Folder"), 1)=__T("0");
-
 }
 
 //---------------------------------------------------------------------------
@@ -624,8 +647,29 @@ void __fastcall TPreferencesF::Setup_GeneralShow(TObject *Sender)
 {
     ComboBox_Update(General_Language_Sel, Prefs_Language);
     CB_CheckUpdate->Checked=Prefs->Config(__T("CheckUpdate")).To_int32s();
-    CB_InscrireShell->Checked=Prefs->Config(__T("ShellExtension")).To_int32s(); //Lecture Shell extension
-    CB_InscrireShell_Folder->Checked=Prefs->Config(__T("ShellExtension_Folder")).To_int32s(); //Lecture Shell extension
+
+    if (TOSVersion::Major == 10 && TOSVersion::Build >= 22000) {
+        // If on Windows 11, modern shell extension is used which does not treat folders separately
+        CB_InscrireShell_Folder->Enabled = false;
+        CB_InscrireShell_Folder->Checked = true;
+        // Check status for shell extension
+        CB_InscrireShell->Checked = true;
+        TRegistry* Reg_HideExplorerContextMenu = new TRegistry;
+        try {
+            if (Reg_HideExplorerContextMenu->OpenKeyReadOnly(__T("Software\\MediaArea\\MediaInfo"))) {
+                if (Reg_HideExplorerContextMenu->ValueExists("HideExplorerContextMenu"))
+                    if (Reg_HideExplorerContextMenu->ReadInteger("HideExplorerContextMenu"))
+                         CB_InscrireShell->Checked = false;
+                Reg_HideExplorerContextMenu->CloseKey();
+            }
+        } catch (...) {}
+        delete Reg_HideExplorerContextMenu;
+    } else {
+        // Legacy shell extension for other Windows versions
+        CB_InscrireShell->Checked=Prefs->Config(__T("ShellExtension")).To_int32s(); //Lecture Shell extension
+        CB_InscrireShell_Folder->Checked=Prefs->Config(__T("ShellExtension_Folder")).To_int32s(); //Lecture Shell extension
+    }
+
     CB_InfoTip->Checked=Prefs->Config(__T("ShellInfoTip")).To_int32s(); //Lecture Shell extension
 }
 

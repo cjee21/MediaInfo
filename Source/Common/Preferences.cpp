@@ -252,8 +252,6 @@ int Preferences::Config_Save()
     if (Config(__T("Tree")).empty()) Config(__T("Tree"))=__T("Example");
     if (Config(__T("Custom")).empty()) Config(__T("Custom"))=__T("Example");
     if (Config(__T("CheckUpdate")).empty()) Config(__T("CheckUpdate"))=__T("1");
-    if (Config(__T("ShellExtension")).empty()) Config(__T("ShellExtension"))=__T("1");
-    if (Config(__T("ShellExtension_Folder")).empty()) Config(__T("ShellExtension_Folder"))=__T("0");
     if (Config(__T("ShellInfoTip")).empty()) Config(__T("ShellInfoTip"))=__T("0");
     if (Config(__T("ShowToolBar")).empty()) Config(__T("ShowToolBar"))=__T("1");
     if (Config(__T("ShowMenu")).empty()) Config(__T("ShowMenu"))=__T("1");
@@ -263,6 +261,19 @@ int Preferences::Config_Save()
     if (Config(__T("Donate_Display")).empty()) Config(__T("Donate_Display"))=__T("1");
     if (Config(__T("Sponsored")).empty()) Config(__T("Sponsored"))=__T("0");
     if (Config(__T("Theme")).empty()) Config(__T("Theme"))=__T("0");
+
+    // Disable legacy shell extension on Windows 11
+    DWORD dwVersion=GetVersion();
+    DWORD dwMajorVersion=(DWORD)(LOBYTE(LOWORD(dwVersion)));
+    DWORD dwBuild=0;
+    if (dwVersion<0x80000000) dwBuild=(DWORD)(HIWORD(dwVersion));
+    if (dwMajorVersion==10 && dwBuild>=22000) {
+        Config(__T("ShellExtension"))=__T("0");
+        Config(__T("ShellExtension_Folder"))=__T("0");
+    } else {
+        if (Config(__T("ShellExtension")).empty()) Config(__T("ShellExtension"))=__T("1");
+        if (Config(__T("ShellExtension_Folder")).empty()) Config(__T("ShellExtension_Folder"))=__T("0");
+    }
 
     HANDLE Temp=CreateFile((BaseFolder+__T("MediaInfo.cfg")).c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
     if (Temp==INVALID_HANDLE_VALUE)
