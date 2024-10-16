@@ -145,11 +145,12 @@ Section "SectionPrincipale" SEC01
   File "..\..\License.html"
   File "/oname=ReadMe.txt" "..\..\Release\ReadMe_GUI_Windows.txt"
   ${If} ${AtLeastWin11}
+    SetOutPath "$INSTDIR\Appx"
     File "..\..\Project\MSVC2022\x64\Release\MediaInfo_SparsePackage.msix"
     File "..\..\Project\MSVC2022\x64\Release\MediaInfo_WindowsShellExtension.dll"
     File "..\..\Project\MSVC2022\win32\Release\MediaInfo_PackageHelper.dll"
     File "..\WindowsSparsePackage\Resources\resources.pri"
-    SetOutPath "$INSTDIR\Assets"
+    SetOutPath "$INSTDIR\Appx\Assets"
     File "..\WindowsSparsePackage\Resources\Assets\*.png"
   ${EndIf}
   SetOverwrite try
@@ -192,7 +193,7 @@ Section -Post
 
   ${If} ${AtLeastWin11}
     !insertmacro MediaInfo_Extensions_Uninstall
-    System::Call '"$INSTDIR\MediaInfo_PackageHelper.dll"::_Install@0() ? u'
+    System::Call '"$INSTDIR\Appx\MediaInfo_PackageHelper.dll"::_Install@0() ? u'
   ${Else}
     !insertmacro MediaInfo_Extensions_Install
   ${EndIf}
@@ -220,13 +221,14 @@ Section Uninstall
     Delete "$INSTDIR\ffmpeg_plugin_uninst.exe"
 
   ${If} ${AtLeastWin11}
-    System::Call '"$INSTDIR\MediaInfo_PackageHelper.dll"::_Uninstall@0() ? u'
-    !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo_PackageHelper.dll"
-    !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo_WindowsShellExtension.dll"
-    Delete "$INSTDIR\MediaInfo_SparsePackage.msix"
-    Delete "$INSTDIR\resources.pri"
-    Delete "$INSTDIR\Assets\*.png"
-    RMDir "$INSTDIR\Assets"
+    System::Call '"$INSTDIR\Appx\MediaInfo_PackageHelper.dll"::_Uninstall@0() ? u'
+    !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\Appx\MediaInfo_PackageHelper.dll"
+    !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\Appx\MediaInfo_WindowsShellExtension.dll"
+    Delete "$INSTDIR\Appx\MediaInfo_SparsePackage.msix"
+    Delete "$INSTDIR\Appx\resources.pri"
+    Delete "$INSTDIR\Appx\Assets\*.png"
+    RMDir "$INSTDIR\Appx\Assets"
+    RMDir "$INSTDIR\Appx"
   ${EndIf}
 
   !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo.exe"

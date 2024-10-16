@@ -103,7 +103,7 @@ public:
         // Get path to application exe and use it as source for icon
         UNREFERENCED_PARAMETER(items);
         std::filesystem::path module_path{ wil::GetModuleFileNameW<std::wstring>(wil::GetModuleInstanceHandle()) };
-        module_path = module_path.remove_filename();
+        module_path = module_path.parent_path().parent_path();
         module_path /= exe_filename;
         return SHStrDupW(module_path.c_str(), icon);
     }
@@ -158,7 +158,7 @@ public:
 
             // Get path to application exe
             std::filesystem::path module_path{ wil::GetModuleFileNameW<std::wstring>(wil::GetModuleInstanceHandle()) };
-            module_path = module_path.remove_filename();
+            module_path = module_path.parent_path().parent_path();
             module_path /= exe_filename;
 
             // Prepare cmd line string to invoke application ("path\to\application.exe" "path\to\firstitem" "path\to\nextitem" ...)
