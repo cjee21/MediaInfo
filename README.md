@@ -2,254 +2,80 @@
 
 MediaInfo is a convenient unified display of the most relevant technical and tag data for video and audio files.
 
-[![Build Status](https://travis-ci.org/MediaArea/MediaInfo.svg?branch=master)](https://travis-ci.org/MediaArea/MediaInfo)
-[![Build status](https://ci.appveyor.com/api/projects/status/msq8b4fuqfy9jmvr/branch/master?svg=true)](https://ci.appveyor.com/project/MediaArea/mediainfo/branch/master)
+## About this branch
 
-# How to build MediaInfo
+This branch is for testing changes to MediaInfo's Windows GUI (VCL)
 
-## Build under macOS and Linux
+This branch has been successfully tested using the latest C++Builder, MSVC and NSIS. MediaInfo installs and uninstalls properly including the Windows 11 Explorer context menu and WebView2 loader on the latest Windows 11 public build. More testing and changes may be needed for the Windows 11 Explorer context menu to ensure robustness.
 
-First, you must create a directory which will receive the MediaInfo directory, and ZenLib and MediaInfoLib if you decide to compile them yourself.
+This branch contains the following additions on top of MediaInfo's master branch:
+- Binaries from MSVC2022 and C++Builder 12 are used by installer script
+- Initial implementation of Windows 11 Explorer context menu
 
-In this document, this directory will be referred as $BUILD_DIR.
 
-### Dependencies under macOS
+## How to build MediaInfo with Windows 11 Explorer context menu
 
-#### MacPorts
+- Update version numbers in the following files as necessary
+  - `Source\GUI\VCL\Manifest.manifest`
+  - `Source\WindowsSparsePackage\AppxManifest.xml`
+  - `Source\WindowsShellExtension\Resource.rc`
+  - `Source\WindowsPackageHelper\Resource.rc`
+- Build the MSIX sparse package, shell extension DLL and helper DLL:
+  ```cmd
+  call "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
+  makeappx pack /d "Source\WindowsSparsePackage\MSIX" /p "Project\MSVC2022\x64\Release\MediaInfo_SparsePackage.msix" /nv
+  MSBuild /t:MediaInfo_WindowsShellExtension /restore /p:RestorePackagesConfig=true;Configuration=Release;Platform=x64 Project\MSVC2022\MediaInfo.sln
+  MSBuild /t:MediaInfo_PackageHelper /restore /p:RestorePackagesConfig=true;Configuration=Release;Platform=Win32 Project\MSVC2022\MediaInfo.sln
+  ```
+- Sign `MediaInfo_SparsePackage.msix`, `MediaInfo_WindowsShellExtension.dll` and `MediaInfo_PackageHelper.dll` in `MediaInfo\Project\MSVC2022\x64\Release`
+- Build the other parts as usual.
 
-Some dependencies are available with MacPorts. To install MacPorts:
-https://guide.macports.org/#installing
+Note: NSIS may have to be updated to latest version to handle Windows 11. Make changes as necessary if not using MSVC2022 and C++Builder 12.
 
-```sh
-port install autoconf automake libtool pkgconfig zlib wxWidgets-3.0
-```
+## Limitations of new context menu implementation
 
-*MediaArea tools*
-* [libzen](#zenlib)
-* [libmediainfo](#mediainfolib)
+- It is only used on Windows 11 at the moment. It should be possible to use it for older Windows versions too to enable opening multiple files in the same instance of MediaInfo and phase out the old registry-based implementation (ref: https://learn.microsoft.com/en-us/windows/win32/shell/reg-shell-exts).
+- This branch is only tested on Windows 11 23H2 and 24H2 on a single user account. More testing on various Windows versions and configurations is needed including tests on multi-account/user setups. The new context menu should appear on all user accounts and should be cleanly removed from all accounts on uninstall. Updating MediaInfo should also be tested to ensure sparse package and DLLs are updated properly. Compatibility with older Windows versions should not be affected as the new changes are only active on Windows 11. It is expected that if there are any issues, it is more likely to occur in the sparse package (un)installation stage. The context menu itself is already considered to be stable.
 
-### Dependencies under Linux
+## Explanation of approach chosen for this new context menu implementation
 
-#### Listing
+- The sparse package is provisioned for all users by the installer during install and removed for all users during uninstall using a helper dll. This should ensure all users will have the context menu on login after install and a clean removal after uninstall.
 
-*Build tools*
+- The 'Assets' folder and `resources.pri` file are needed because when the app runs with app identity, the assets referenced by the sparse package manifest is used for the app icon. Since it is a sparse package, it itself does not contain assets and instead references the assets that are in the declared external location. The `resources.pri` is needed for the 'unplated' icons which are needed to prevent the icon from having accent-coloured plating as the background.
 
-* git
-* automake
-* autoconf
-* libtool
-* pkgconfig
-* make
-* g++
+- In order to minimize the size of the DLL while ensuring it runs on clean Windows installations without Microsoft Visual C++ Redistributable installed, `vcruntime` is statically linked while `ucrt` is dynamically linked. This results in something between using `/MT` and `/MD`. It is known as [Hybrid CRT](https://github.com/microsoft/WindowsAppSDK/blob/main/docs/Coding-Guidelines/HybridCRT.md) and is supported according to the CRT maintainer.
 
-*MediaArea tools*
+- `/PDBALTPATH:%_PDB%` is added to linker in release mode so that the PDB file path is not contained in the DLL. This ensures no path information leakage and reduces the size of DLL slightly while still enabling analysis that requires PDB files to be done, for example SizeBench.
 
-* libzen0
-* libmediainfo0
+- The shell extension is re-written from WRL to C++/WinRT. See 'Note' at https://learn.microsoft.com/en-us/cpp/cppcx/wrl/windows-runtime-cpp-template-library-wrl?view=msvc-170 for details.
 
-*CLI and GUI dependencies*
+- The sparse package and shell extension is moved to subdirectory instead of doing it 100% the proper way in order to prevent MediaInfo.exe from having app/package identity.
+  - Reason: With package identity, for some reason, when MediaInfo is launched from start menu and running, right-clicking a file in File Explorer fails to load the context menu entry and causes MediaInfo to force-close. This does not happen if a MediaInfo instance that is started from the context menu is running.
+  - Effect of workaround: MediaInfo no longer has app identity. Since we are not using any other features that require identity at the moment, there are no disadvantages other than there is no package name shown in task manager for MediaInfo's process.
 
-* zlib
+## Enabled security mitigations for new context menu
 
-*GUI only dependencies*
+The following are enabled in the project file for the Explorer context menu shell extension DLL.
 
-* wxwidgets
+GS (Buffer Security Check), sdl (Additional Security Checks), NXCOMPAT (Data Execution Prevention), DYNAMICBASE (Address space layout randomization), HIGHENTROPYVA (64-Bit ASLR), guard:cf (Control Flow Guard), guard:ehcont (EH Continuation Metadata), Qspectre (Spectre variant 1 mitigation), CETCOMPAT (CET Shadow Stack)
 
-#### Ubuntu
+## Video of this branch in action
 
-*Build tools and CLI/GUI dependencies*
+https://github.com/user-attachments/assets/f8da9135-3e76-4695-be19-42c2f7d1e2d5
 
-```sh
-apt-get install git automake autoconf libtool pkg-config make g++ zlib1g-dev
-```
+## References
 
-*MediaArea tools*
-
-Go to https://mediaarea.net/fr/MediaInfo/Download/Ubuntu and download the libmediainfo0, libmediainfo-dev, libzen0 and libzen-dev packages corresponding to your Ubuntu version. Then install them with :
-
-```sh
-dpkg -i libmediainfo* libzen*
-```
-
-*GUI only dependencies*
-
-```sh
-apt-get install libwxgtk3.0-dev
-```
-
-#### Fedora
-
-*Build tools and CLI/GUI dependencies*
-
-```sh
-sudo yum install git automake autoconf libtool pkgconfig make gcc-c++ zlib-devel
-```
-
-*MediaArea tools*
-
-Go to https://mediaarea.net/fr/MediaInfo/Download/Fedora and download the libmediainfo0, libmediainfo-devel, libzen0 and libzen-devel packages corresponding to your Fedora version and CPU architecture. Then install them with :
-
-```sh
-sudo yum install libmediainfo*.rpm libzen*.rpm
-```
-
-*GUI only dependencies*
-
-```sh
-sudo yum install wxGTK-devel desktop-file-utils
-```
-
-#### Debian
-
-*Build tools and CLI/GUI dependencies*
-
-```sh
-apt-get install git automake autoconf libtool pkg-config make g++ zlib1g-dev
-```
-
-*MediaArea tools*
-
-Go to https://mediaarea.net/fr/MediaInfo/Download/Debian and download the libmediainfo0, libmediainfo-dev, libzen0 and libzen-dev packages corresponding to your Debian version. Then install them with :
-
-```sh
-dpkg -i libmediainfo* libzen*
-```
-
-*GUI only dependencies*
-
-```sh
-apt-get install libwxgtk3.0-dev
-```
-
-#### OpenSUSE
-
-*Build tools and CLI/GUI dependencies*
-
-```sh
-zypper install git automake autoconf libtool pkgconfig make gcc-c++ zlib-devel
-```
-
-*MediaArea tools*
-
-Go to https://mediaarea.net/fr/MediaInfo/Download/openSUSE and download the libmediainfo0, libmediainfo-devel, libzen0 and libzen-devel packages corresponding to your OpenSuse version. Then install them with :
-
-```sh
-rpm -i libmediainfo* libzen*
-```
-
-*GUI only dependencies*
-
-```sh
-zypper install libqt4-devel libQtWebKit-devel update-desktop-files
-```
-
-### Build MediaInfo CLI
-
-When you have done all the prerequisites for your configuration, then build MediaInfo. We start with the CLI.
-
-```sh
-cd $BUILD_DIR
-git clone https://github.com/MediaArea/MediaInfo.git
-cd MediaInfo/Project/GNU/CLI
-./autogen.sh
-```
-
-##### Then, under macOS:
-
-```sh
-./configure --enable-staticlibs
-make
-```
-
-##### Under Linux:
-
-```sh
-./configure --enable-shared
-make
-```
-
-Or for statically linked executable, if you also build ZenLib and MediaInfoLib:
-```sh
-./configure --enable-staticlibs
-make
-```
-
-#### Launch the CLI
-
-```sh
-./mediainfo
-```
-
-### Build MediaInfo GUI
-
-If you have already built the CLI, no need to run git twice. In fact, if you re-run git with an existing MediaInfo directory, git will complain and exit.
-
-To compile MediaInfo GUI under macOS and Linux:
-
-```sh
-cd $BUILD_DIR
-git clone https://github.com/MediaArea/MediaInfo.git
-cd MediaInfo/Project/GNU/GUI
-./autogen.sh
-```
-
-##### Then, under macOS:
-
-```sh
-export PATH=$PATH:/opt/local/Library/Frameworks/wxWidgets.framework/Versions/wxWidgets/3/0/bin
-./configure --enable-staticlibs
-make
-```
-
-##### Under Linux:
-
-```sh
-./configure --enable-shared
-make
-```
-
-Or for statically linked executable, if you also build ZenLib and MediaInfoLib:
-```sh
-./configure --enable-staticlibs
-make
-```
-
-#### Launch the GUI
-
-```sh
-./mediainfo-gui
-```
-
-### Optional : build ZenLib and MediaInfoLib
-
-#### ZenLib
-
-To compile ZenLib under macOS and Linux:
-
-```sh
-cd $BUILD_DIR
-git clone https://github.com/MediaArea/ZenLib.git
-cd ZenLib/Project/GNU/Library
-./autogen.sh
-./configure --enable-static
-make
-```
-
-#### MediaInfoLib
-
-To compile MediaInfoLib under macOS and Linux:
-
-```sh
-cd $BUILD_DIR
-git clone https://github.com/MediaArea/MediaInfoLib.git
-cd MediaInfoLib/Project/GNU/Library
-./autogen.sh
-./configure --enable-static
-make
-```
-
-MediaInfo - https://github.com/MediaArea/MediaInfo
-Copyright (c) MediaArea.net SARL. All Rights Reserved.
-
-This program is freeware under BSD-2-Clause license conditions.
-See the [License](https://mediaarea.net/en/MediaInfo/License) for more information
+The following resources helped in the making of the Windows 11 File Explorer context menu
+- https://blogs.windows.com/windowsdeveloper/2021/07/19/extending-the-context-menu-and-share-dialog-in-windows-11/
+- https://blogs.windows.com/windowsdeveloper/2019/10/29/identity-registration-and-activation-of-non-packaged-win32-apps/
+- https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/grant-identity-to-nonpackaged-apps
+- https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-iexplorercommand
+- https://github.com/microsoft/AppModelSamples/tree/master/Samples/SparsePackages
+- https://github.com/microsoft/vscode-explorer-command
+- https://github.com/xandfis/W11ContextMenuDemo
+- https://github.com/M2Team/NanaZip/blob/main/NanaZip.UI.Modern/NanaZip.ShellExtension.cpp
+- https://github.com/notepad-plus-plus/notepad-plus-plus/blob/ce4d374a4782185f2e0dbaa2e6527ba7f8b9ad39/PowerEditor/src/tools/NppModernShell/Installer.cpp
+- https://github.com/notepad-plus-plus/nppShell/blob/5e410dd6450a2572dd2eb209250561b6eec97535/Installer.cpp
+- https://learn.microsoft.com/en-us/windows/uwp/cpp-and-winrt-apis/intro-to-using-cpp-with-winrt
+- https://learn.microsoft.com/en-us/cpp/cppcx/wrl/windows-runtime-cpp-template-library-wrl?view=msvc-170
+- https://github.com/microsoft/wil
