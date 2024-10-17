@@ -171,7 +171,7 @@ Section -Post
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon"     "$INSTDIR\MediaInfo.exe"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayVersion"  "${PRODUCT_VERSION}"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "URLInfoAbout"    "${PRODUCT_WEB_SITE}"
-  Exec 'regsvr32 "$INSTDIR\MediaInfo_InfoTip.dll" /s'
+  ExecWait '"$SYSDIR\regsvr32.exe" "$INSTDIR\MediaInfo_InfoTip.dll" /s'
   !insertmacro MediaInfo_Extensions_Install
 
   ${If} ${AtLeastWin7}
@@ -179,13 +179,22 @@ Section -Post
     IntFmt $0 "0x%08X" $0 ; Convert the decimal KB value in $0 to DWORD, put it right back into $0
     WriteRegDWORD ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "EstimatedSize" "$0" ; Create/Write the reg key with the dword value
   ${EndIf}
+
+  ; Refresh File Explorer
+  !ifndef SHCNE_ASSOCCHANGED
+    !define SHCNE_ASSOCCHANGED 0x08000000
+  !endif
+  !ifndef SHCNF_IDLIST
+    !define SHCNF_IDLIST 0x0000
+  !endif
+  System::Call 'Shell32::SHChangeNotify(i ${SHCNE_ASSOCCHANGED}, i ${SHCNF_IDLIST}, i 0, i 0)'
+
 SectionEnd
 
 
 Section Uninstall
   !insertmacro MediaInfo_Extensions_Uninstall
-  Exec 'regsvr32 "$INSTDIR\MediaInfo_InfoTip.dll" /u /s'
-  Sleep 3000
+  ExecWait '"$SYSDIR\regsvr32.exe" "$INSTDIR\MediaInfo_InfoTip.dll" /u /s'
 
   IfFileExists "$INSTDIR\graph_plugin_uninst.exe" 0 +3
     ExecWait '"$INSTDIR\graph_plugin_uninst.exe" /S _?=$INSTDIR'
@@ -198,10 +207,10 @@ Section Uninstall
   !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo.exe"
   !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo.dll"
   !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo_i386.dll"
+  !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\MediaInfo_InfoTip.dll"
   !insertmacro UnInstallLib DLL NOTSHARED REBOOT_NOTPROTECTED "$INSTDIR\WebView2Loader.dll"
   Delete "$INSTDIR\${PRODUCT_NAME}.url"
   Delete "$INSTDIR\uninst.exe"
-  Delete "$INSTDIR\MediaInfo_InfoTip.dll"
   Delete "$INSTDIR\History.txt"
   Delete "$INSTDIR\License.html"
   Delete "$INSTDIR\License.NoModifications.html"
@@ -239,4 +248,14 @@ Section Uninstall
   DeleteRegKey ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}"
   DeleteRegKey HKLM "${PRODUCT_DIR_REGKEY}"
   SetAutoClose true
+
+  ; Refresh File Explorer
+  !ifndef SHCNE_ASSOCCHANGED
+    !define SHCNE_ASSOCCHANGED 0x08000000
+  !endif
+  !ifndef SHCNF_IDLIST
+    !define SHCNF_IDLIST 0x0000
+  !endif
+  System::Call 'Shell32::SHChangeNotify(i ${SHCNE_ASSOCCHANGED}, i ${SHCNF_IDLIST}, i 0, i 0)'
+
 SectionEnd
