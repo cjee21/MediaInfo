@@ -14,7 +14,7 @@ set CERT_PASS=%CERT_PASS%
 :: set paths
 set PATH_TEMP=%PATH%
 set PATH=%QT_PATH%\bin\;%QT_TOOLS_PATH%\QtCreator\bin\jom\;%PATH%
-call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
 
 :: generate/update Qt translations files
 call %~dp0\..\Source\GUI\Qt\Qt_Translations_Updater\update_Qt_translations.cmd
