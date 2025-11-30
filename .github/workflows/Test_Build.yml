@@ -53,12 +53,12 @@ jobs:
       - name: Checkout MediaInfo
         uses: actions/checkout@v5
         with:
-          repository: MediaArea/MediaInfo
+          repository: cjee21/MediaInfo
+          ref: csv
           path: MediaInfo
 
       - name: Prepare source
         run: |
-          (Get-Content MediaInfo\Release\Release_GUI_Qt_Windows_x64_MSIX.cmd) -replace 'Community', 'Enterprise' | Set-Content MediaInfo\Release\Release_GUI_Qt_Windows_x64_MSIX.cmd
           (Get-Content MediaInfo\Source\WindowsQtPackage\AppxManifest.xml) -replace '"CN=MEDIAAREA.NET, O=MEDIAAREA.NET, L=Curienne, S=Auvergne-Rhône-Alpes, C=FR"', '"CN=TestPublisher, OID.2.25.311729368913984317654407730594956997722=1"' | Set-Content MediaInfo\Source\WindowsQtPackage\AppxManifest.xml
 
       - name: Obtain FFmpeg
@@ -108,9 +108,8 @@ jobs:
       - name: Build Qt GUI
         shell: cmd
         run: |
-          set QT_PATH=${{ env.QT_ROOT_DIR }}
-          set QT_TOOLS_PATH=${{ env.IQTA_TOOLS }}
-          set FFMPEG_EXE=${{ github.workspace }}\MediaInfo-FFmpeg-Plugin\ffmpeg.exe
+          set PATH=${{ env.QT_ROOT_DIR }};${{ env.IQTA_TOOLS }}\QtCreator\bin\jom;%PATH%
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           call ${{ github.workspace }}\MediaInfo\Release\Release_GUI_Qt_Windows_x64_MSIX.cmd
 
       - name: List repos and hashes for version info
