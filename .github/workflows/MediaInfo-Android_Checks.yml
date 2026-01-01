@@ -18,6 +18,10 @@ jobs:
 
   Ubuntu:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [app, tvapp]
+      fail-fast: false
     steps:
       - name: Checkout zlib
         uses: actions/checkout@v5
@@ -37,14 +41,13 @@ jobs:
       - name: Checkout MediaInfo
         uses: actions/checkout@v5
         with:
-          repository: MediaArea/MediaInfo
           path: MediaInfo
       - name: Build APKs
         run: |
           export JAVA_HOME="$JAVA_HOME_${{ env.JAVA_VER }}_X64"
           pushd ${{ github.workspace }}/MediaInfo/Source/GUI/Android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew :${{ matrix.module }}:assembleRelease
           popd
       - name: Check alignment
         run: |
@@ -58,4 +61,4 @@ jobs:
           fi
           curl "https://android.googlesource.com/platform/system/extras/+/main/tools/check_elf_alignment.sh?format=TEXT"| base64 --decode > check_elf_alignment.sh
           chmod +x check_elf_alignment.sh
-          ./check_elf_alignment.sh ${{ github.workspace }}/MediaInfo/Source/GUI/Android/app/build/outputs/apk/release/app-universal-release-unsigned.apk
+          ./check_elf_alignment.sh ${{ github.workspace }}/MediaInfo/Source/GUI/Android/${{ matrix.module }}/build/outputs/apk/release/${{ matrix.module }}-${{ matrix.module == 'app' && 'universal-' || '' }}release-unsigned.apk
