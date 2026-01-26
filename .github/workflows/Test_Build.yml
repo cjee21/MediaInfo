@@ -1,0 +1,279 @@
+name: Test Build
+
+on:
+  push:
+
+env:
+  QT_VER: v6.11.0-beta2
+  JAVA_VER: 21
+
+jobs:
+
+  Windows:
+
+    name: Build Windows
+
+    runs-on: windows-latest
+
+    steps:
+
+      - name: Checkout zlib
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/zlib
+          path: zlib
+
+      - name: Checkout ZenLib
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/ZenLib
+          path: ZenLib
+
+      - name: Checkout MediaArea-Utils-Binaries for 7-Zip and libcurl
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/MediaArea-Utils-Binaries
+          path: MediaArea-Utils-Binaries
+          sparse-checkout: |
+            Windows/7-Zip
+            Windows/libcurl
+
+      - name: Checkout MediaInfo-Graph-Plugin-Binaries
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/MediaInfo-Graph-Plugin-Binaries
+          path: MediaInfo-Graph-Plugin-Binaries
+
+      - name: Checkout MediaInfoLib
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/MediaInfoLib
+          path: MediaInfoLib
+
+      - name: Checkout MediaInfo
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/MediaInfo
+          path: MediaInfo
+
+      - name: Checkout Qt
+        uses: actions/checkout@v6
+        with:
+          repository: qt/qt5
+          ref: ${{ env.QT_VER }}
+          path: qt-sources
+
+      - name: Prepare source
+        run: |
+          (Get-Content MediaInfo\Source\WindowsQtPackage\AppxManifest.xml) -replace '"CN=MEDIAAREA.NET, O=MEDIAAREA.NET, L=Curienne, S=Auvergne-Rhône-Alpes, C=FR"', '"CN=TestPublisher, OID.2.25.311729368913984317654407730594956997722=1"' | Set-Content MediaInfo\Source\WindowsQtPackage\AppxManifest.xml
+
+      - name: Obtain FFmpeg
+        run: |
+          New-Item -Name "MediaInfo-FFmpeg-Plugin" -ItemType "directory"
+          Invoke-WebRequest -Uri "https://mediaarea.net/download/binary/mediainfo-ffmpeg-plugin/6.1/MediaInfo_FFmpegPlugin_6.1_Windows.exe" -OutFile "MediaInfo_FFmpegPlugin_6.1_Windows.exe"
+          7z e ${{ github.workspace }}\MediaInfo_FFmpegPlugin_6.1_Windows.exe ffmpeg.exe -o${{ github.workspace }}\MediaInfo-FFmpeg-Plugin
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+
+      - name: Build CLI
+        shell: cmd
+        run: |
+          MSBuild -t:MediaInfo-CLI -p:Configuration=Release -p:Platform=x64 ${{ github.workspace }}\MediaInfo\Project\MSVC2022\MediaInfo.sln
+          pushd ${{ github.workspace }}\MediaInfo\Release
+          call Release_CLI_Windows_x64.bat
+          popd
+
+      - name: Test CLI
+        shell: cmd
+        run: |
+          pushd ${{ github.workspace }}\MediaInfo\Project\MSVC2022\x64\Release
+          MediaInfo.exe MediaInfo.exe
+          popd
+
+      - name: Copy Qt GUI dependencies
+        shell: cmd
+        run: |
+          xcopy /y ${{ github.workspace }}\MediaInfo\Project\MSVC2022\x64\Release\ZenLib.lib ${{ github.workspace }}\ZenLib\Project\MSVC2022\x64\Release\
+          xcopy /y ${{ github.workspace }}\MediaInfo\Project\MSVC2022\x64\Release\MediaInfo-Static.lib ${{ github.workspace }}\MediaInfoLib\Project\MSVC2022\x64\Release\
+
+      - name: Obtain Jom
+        run: |
+          Invoke-WebRequest -Uri "http://download.qt.io/official_releases/jom/jom.zip" -OutFile "jom.zip"
+          Expand-Archive -Path jom.zip -DestinationPath ${{ github.workspace }}\Qt\Tools\QtCreator\bin\jom
+          echo "IQTA_TOOLS=${{ github.workspace }}\Qt\Tools" >> $env:GITHUB_ENV
+
+      - name: Build Qt static x64
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" amd64
+          mkdir qt-build
+          cd qt-build
+          call ..\qt-sources\configure.bat -init-submodules -submodules qtbase,qtsvg,qttools -prefix ${{ github.workspace }}\Qt\msvc2022_64 -release -static -ltcg -gc-binaries -disable-deprecated-up-to 0x060000 -no-feature-assistant -no-feature-designer -no-feature-qdoc -no-feature-qdoc_coverage -no-feature-qdbus -no-feature-pixeltool -no-feature-distancefieldgenerator -- -DBUILD_qtactiveqt=OFF -DBUILD_qtdeclarative=OFF -DBUILD_qtimageformats=OFF -DBUILD_qtlanguageserver=OFF -DBUILD_qtshadertools=OFF -DCMAKE_CXX_FLAGS="/guard:cf /guard:ehcont" -DCMAKE_EXE_LINKER_FLAGS="/guard:cf /guard:ehcont /CETCOMPAT"
+          cmake --build . --parallel
+          cmake --install .
+          echo ${{ github.workspace }}\Qt\msvc2022_64\bin>>"%GITHUB_PATH%"
+
+      - name: Build Qt GUI
+        shell: cmd
+        run: |
+          set PATH=${{ env.IQTA_TOOLS }}\QtCreator\bin\jom;%PATH%
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" amd64
+          call ${{ github.workspace }}\MediaInfo\Release\Release_GUI_Qt_Windows_x64_MSIX.cmd
+
+      - name: List repos and hashes for version info
+        run: |
+          # Initialize an empty array to store results
+          $repo_info_list = @()
+          # Define the folders containing the different repositories
+          $folders = @('MediaInfo', 'MediaInfoLib', 'MediaInfo-Graph-Plugin-Binaries', 'MediaArea-Utils-Binaries', 'ZenLib', 'zlib')
+          # Retrieve the Qt version
+          try {
+              $qt_version_output = &qmake -v 2>&1
+              if ($qt_version_output[1] -match "Qt version (\d+\.\d+\.\d+)") {
+                  $qt_version = "Qt @ $($Matches[1])"
+              } else {
+                  $qt_version = "Qt version not detected"
+              }
+          } catch {
+              $qt_version = "Qt tools not found in PATH"
+          }
+          # Add the Qt version to the list
+          $repo_info_list += $qt_version
+          # Iterate over each folder
+          foreach ($folder in $folders) {
+            # Check if the folder exists
+            if (Test-Path $folder) {
+              # Change directory to the repo folder
+              Set-Location $folder
+              # Check if it's a valid git repository
+              if (Test-Path ".git") {
+                # Get the repository name (user/repo format)
+                $repo_url = git config --get remote.origin.url
+                $repo_name = ($repo_url -replace '.git$', '').Split('/')[-2..-1] -join '/'
+                # Get the current Git commit hash
+                $git_hash = git rev-parse HEAD
+                # Format the output as "user/repo @ <hash>"
+                $repo_info = "$repo_name @ $git_hash"
+                $repo_info_list += $repo_info
+              }
+              # Go back to the root directory after processing the repo folder
+              Set-Location ..
+            }
+          }
+          # Write the list of repos and hashes to a text file
+          $repo_info_list | Out-File -FilePath version_info.txt -Encoding utf8
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: MediaInfo Windows test build
+          path: |
+            ${{ github.workspace }}\MediaInfo\Release\MediaInfo_CLI_Windows_x64.zip
+            ${{ github.workspace }}\MediaInfo\Release\MediaInfo_Qt_Windows_x64.msix
+            ${{ github.workspace }}\version_info.txt
+
+  Android:
+
+    name: Build Android
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout zlib
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/zlib
+          path: zlib
+
+      - name: Checkout ZenLib
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/ZenLib
+          path: ZenLib
+ 
+      - name: Checkout MediaInfoLib
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/MediaInfoLib
+          path: MediaInfoLib
+
+      - name: Checkout MediaInfo
+        uses: actions/checkout@v6
+        with:
+          repository: MediaArea/MediaInfo
+          path: MediaInfo
+
+      - name: Build APKs
+        run: |
+          export JAVA_HOME="$JAVA_HOME_${{ env.JAVA_VER }}_X64"
+          pushd ${{ github.workspace }}/MediaInfo/Source/GUI/Android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+          popd
+
+      - name: Sign APKs
+        run: |
+          curl -L -o uber-apk-signer.jar https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar
+          java -jar uber-apk-signer.jar --apks ${{ github.workspace }}/MediaInfo/Source/GUI/Android/app/build/outputs/apk/release/ --skipZipAlign
+          find ${{ github.workspace }}/MediaInfo/Source/GUI/Android/app/build/outputs/apk/release/ -name "*-unsigned.apk" -type f -delete
+
+      - name: Check alignment
+        run: |
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/*/)
+          if [[ -n "$BUILD_TOOLS" ]]; then
+            LATEST_BUILD_TOOLS=$(echo "$BUILD_TOOLS" | sort -Vr | head -n 1)
+            export PATH="$LATEST_BUILD_TOOLS:$PATH"
+            echo "Added $LATEST_BUILD_TOOLS to PATH"
+          else
+            echo "::warning::Check alignment: Android Build Tools directory not found."
+          fi
+          curl "https://android.googlesource.com/platform/system/extras/+/main/tools/check_elf_alignment.sh?format=TEXT"| base64 --decode > check_elf_alignment.sh
+          chmod +x check_elf_alignment.sh
+          ./check_elf_alignment.sh ${{ github.workspace }}/MediaInfo/Source/GUI/Android/app/build/outputs/apk/release/app-universal-release-debugSigned.apk
+
+      - name: List repos and hashes for version info
+        run: |
+          # Initialize an empty array to store results
+          repo_info_list=()
+          # Define the folders containing the different repositories
+          folders=("MediaInfo" "MediaInfoLib" "ZenLib" "zlib")
+          # Iterate over each folder
+          for folder in "${folders[@]}"; do
+              # Check if the folder exists
+              if [ -d "$folder" ]; then
+                  # Change directory to the repo folder
+                  cd "$folder" || continue
+                  # Check if it's a valid git repository
+                  if [ -d ".git" ]; then
+                      # Get the repository name (user/repo format)
+                      repo_url=$(git config --get remote.origin.url)
+                      repo_name=$(echo "$repo_url" | sed 's/\.git$//' | awk -F/ '{print $(NF-1)"/"$NF}')
+            
+                      # Get the current Git commit hash
+                      git_hash=$(git rev-parse HEAD)
+            
+                      # Format the output as "user/repo @ <hash>"
+                      repo_info="$repo_name @ $git_hash"
+            
+                      # Add to the list
+                      repo_info_list+=("$repo_info")
+                  fi
+                  # Go back to the root directory after processing the repo folder
+                  cd ..
+              fi
+          done
+          # Write the list of repos and hashes to a text file
+          printf "%s\n" "${repo_info_list[@]}" > version_info.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: MediaInfo Android test build
+          path: |
+            ${{ github.workspace }}/MediaInfo/Source/GUI/Android/app/build/outputs/apk/release/
+            ${{ github.workspace }}/MediaInfo/Source/GUI/Android/app/build/outputs/mapping/release/
+            ${{ github.workspace }}/version_info.txt
