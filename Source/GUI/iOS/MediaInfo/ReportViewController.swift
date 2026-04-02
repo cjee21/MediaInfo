@@ -211,4 +211,24 @@ class ReportViewController: UIViewController, UIDocumentPickerDelegate {
             }
         }
     }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocuments urls: [URL]) {
+        cleanupTemporaryFiles()
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        cleanupTemporaryFiles()
+    }
+
+    // Clean up temporary files created for exporting reports.
+    private func cleanupTemporaryFiles() {
+        let fileManager = FileManager.default
+        let tmpDir = NSTemporaryDirectory()
+        if let files = try? fileManager.contentsOfDirectory(atPath: tmpDir) {
+            for file in files {
+                let filePath = (tmpDir as NSString).appendingPathComponent(file)
+                try? fileManager.removeItem(atPath: filePath)
+            }
+        }
+    }
 }
