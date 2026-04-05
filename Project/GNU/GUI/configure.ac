@@ -208,11 +208,7 @@ if test "$with_wxwidgets" = "yes"; then
             ])
     fi
     if test "$with_wxwidgets" = "system"; then
-        if test "${with_wx_config+set}" = set; then
-            ZenLib_Wx_Config=$with_wx_config;
-        else
-            ZenLib_Wx_Config="wx-config"
-        fi
+       ZenLib_Wx_Config=$WX_CONFIG_PATH
     fi
     if test "$with_wxwidgets" = "builtin"; then
        ZenLib_Wx_Config="../../../../Shared/Source/WxWidgets/wx-config"
