@@ -26,6 +26,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UISplitViewControllerDele
         SKPaymentQueue.default().add(self)
         subscriptionManager.loadSubscription()
 
+        cleanupLegacyCache()
+
         return true
     }
 
@@ -44,6 +46,47 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UISplitViewControllerDele
     func applicationWillTerminate(_ application: UIApplication) {
         // Called when the application is about to terminate. Save data if appropriate.
         self.saveContext()
+    }
+
+    /// One-time cleanup of locally cached iCloud files and temporary files
+    /// left behind by previous versions.
+    private func cleanupLegacyCache() {
+        let cleanupKey = "hasCleanedLegacyIcloudCache"
+
+        if UserDefaults.standard.bool(forKey: cleanupKey) {
+            return
+        }
+
+        DispatchQueue.global(qos: .utility).async {
+            let fileManager = FileManager.default
+
+            // Clean up any locally cached iCloud files from the app's ubiquity container
+            if let containerURL = fileManager.url(forUbiquityContainerIdentifier: nil) {
+                let documentsURL = containerURL.appendingPathComponent("Documents")
+                if let enumerator = fileManager.enumerator(at: documentsURL,
+                                                           includingPropertiesForKeys: [.isUbiquitousItemKey],
+                                                           options: [.skipsHiddenFiles]) {
+                    for case let fileURL as URL in enumerator {
+                        if let resourceValues = try? fileURL.resourceValues(forKeys: [.isUbiquitousItemKey]) {
+                            if resourceValues.isUbiquitousItem == true {
+                                try? fileManager.evictUbiquitousItem(at: fileURL)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Clean up any temporary files from old versions
+            let tmpDir = NSTemporaryDirectory()
+            if let files = try? fileManager.contentsOfDirectory(atPath: tmpDir) {
+                for file in files {
+                    let filePath = (tmpDir as NSString).appendingPathComponent(file)
+                    try? fileManager.removeItem(atPath: filePath)
+                }
+            }
+
+            UserDefaults.standard.set(true, forKey: cleanupKey)
+        }
     }
 
     // MARK: - Split view

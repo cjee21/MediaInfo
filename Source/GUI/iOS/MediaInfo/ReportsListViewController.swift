@@ -343,9 +343,14 @@ class ReportsListViewController: UITableViewController, NSFetchedResultsControll
         return nil
     }
 
-    func extractFileUrls(urls: [URL]) -> [URL] {
+    func evictIcloudFile(url: URL) {
+        try? FileManager.default.evictUbiquitousItem(at: url) // Eviction is best-effort; file may not be ubiquitous
+    }
+
+    func extractFileUrls(urls: [URL]) -> (fileUrls: [URL], icloudUrls: [URL]) {
         let fileManager: FileManager = FileManager.default
         var toReturn: [URL] = [URL]()
+        var icloudDownloaded: [URL] = [URL]()
 
         for url in urls {
             if isDirectoryUrl(url: url) {
@@ -357,6 +362,7 @@ class ReportsListViewController: UITableViewController, NSFetchedResultsControll
                         if (lastPathComponent.hasPrefix(".") && lastPathComponent.hasSuffix(".icloud")) {
                             if let file: URL = retreiveFileFromIcloud(url: cur) {
                                 toReturn.append(file)
+                                icloudDownloaded.append(file)
                             }
                         } else {
                             toReturn.append(cur)
@@ -368,6 +374,7 @@ class ReportsListViewController: UITableViewController, NSFetchedResultsControll
                 if (lastPathComponent.hasPrefix(".") && lastPathComponent.hasSuffix(".icloud")) {
                     if let file: URL = retreiveFileFromIcloud(url: url) {
                         toReturn.append(file)
+                        icloudDownloaded.append(file)
                     }
                 } else {
                     toReturn.append(url)
@@ -375,7 +382,7 @@ class ReportsListViewController: UITableViewController, NSFetchedResultsControll
             }
         }
 
-        return toReturn
+        return (toReturn, icloudDownloaded)
     }
 
     // MARK: - PHPickerViewControllerDelegate
@@ -512,7 +519,10 @@ class ReportsListViewController: UITableViewController, NSFetchedResultsControll
 
         DispatchQueue.main.async { [weak self] in
             if let main = self {
-                let fileUrls: [URL] = main.extractFileUrls(urls: urls)
+                let result = main.extractFileUrls(urls: urls)
+                let fileUrls = result.fileUrls
+                let icloudUrls = result.icloudUrls
+
                 for url in fileUrls {
                      do {
                         let report = try main.core.createReport(url: url, name: url.lastPathComponent)
@@ -538,6 +548,16 @@ class ReportsListViewController: UITableViewController, NSFetchedResultsControll
 
                         main.view.makeToast("ERROR: \(nserror), \(nserror.userInfo) when trying to save report", duration: 5.0, position: .top)
                     }
+                }
+
+                // Evict iCloud files to free local disk space
+                for icloudUrl in icloudUrls {
+                    main.evictIcloudFile(url: icloudUrl)
+                }
+
+                // Clean up temporary files created by .import document picker
+                for url in urls {
+                    try? FileManager.default.removeItem(at: url)
                 }
 
                 main.view.hideToastActivity()
