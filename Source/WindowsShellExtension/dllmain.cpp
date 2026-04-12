@@ -454,8 +454,27 @@ public:
 
     IFACEMETHODIMP GetState(_In_opt_ IShellItemArray* items, _In_ BOOL okToBeSlow, _Out_ EXPCMDSTATE* cmdState) {
         // Provide state of File Explorer context menu entry
-        // Hide it if registry setting indicates that it should be disabled, else it is enabled
-        UNREFERENCED_PARAMETER(okToBeSlow);
+        // Hide it if registry setting indicates that it should be disabled or file is unsupported, else it is enabled
+
+        if (!okToBeSlow) {
+            *cmdState = ECS_DISABLED;
+            // returning E_PENDING requests that a new instance of this object be called back
+            // on a background thread so that it can do work that might be slow
+            return E_PENDING;
+        }
+
+#ifdef MEDIAINFO_QT
+        auto shellExtension{ RegGetBool(HKEY_CURRENT_USER, L"Software\\MediaArea.net\\MediaInfo", L"shellExtension") };
+        if (shellExtension.has_value() && !shellExtension.value())
+#else
+        auto ShellExtension{ RegGetDword(HKEY_CURRENT_USER, L"Software\\MediaArea\\MediaInfo", L"ShellExtension") };
+        auto ShellExtension_Folder{ RegGetDword(HKEY_CURRENT_USER, L"Software\\MediaArea\\MediaInfo", L"ShellExtension_Folder") };
+        if (ShellExtension.has_value() && !ShellExtension.value() && ShellExtension_Folder.has_value() && !ShellExtension_Folder.value())
+#endif // MEDIAINFO_QT
+        {
+            *cmdState = ECS_HIDDEN;
+            return S_OK;
+        }
 
         // Check if it is a folder or supported file extension
         bool is_folder{ false };
@@ -498,27 +517,13 @@ public:
             }
         }
 
-        // Check for files
         if (!is_supported_extension && !is_folder) {
-            *cmdState = ECS_HIDDEN;
-            return S_OK;
-        }
-#ifdef MEDIAINFO_QT
-        auto shellExtension{ RegGetBool(HKEY_CURRENT_USER, L"Software\\MediaArea.net\\MediaInfo", L"shellExtension") };
-        if (shellExtension.has_value() && !shellExtension.value())
-#else
-        auto ShellExtension{ RegGetDword(HKEY_CURRENT_USER, L"Software\\MediaArea\\MediaInfo", L"ShellExtension") };
-        if (ShellExtension.has_value() && !ShellExtension.value() && !is_folder)
-#endif // MEDIAINFO_QT
-        {
             *cmdState = ECS_HIDDEN;
             return S_OK;
         }
 
 #ifndef MEDIAINFO_QT
-        // Check for folders
-        auto ShellExtension_Folder{ RegGetDword(HKEY_CURRENT_USER, L"Software\\MediaArea\\MediaInfo", L"ShellExtension_Folder") };
-        if (ShellExtension_Folder.has_value() && !ShellExtension_Folder.value() && is_folder) {
+        if ((ShellExtension.has_value() && !ShellExtension.value() && !is_folder) || (ShellExtension_Folder.has_value() && !ShellExtension_Folder.value() && is_folder)) {
             *cmdState = ECS_HIDDEN;
             return S_OK;
         }
