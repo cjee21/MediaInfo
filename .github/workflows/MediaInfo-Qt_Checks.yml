@@ -61,7 +61,7 @@ jobs:
           version: ${{ env.QT_VER }}
           cache: true
       - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
         with:
           msbuild-architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
       - name: Build dependencies

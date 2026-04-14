@@ -1,0 +1,50 @@
+# Adapted from code generated with Google Gemini 3
+
+name: 'Setup MSVC Environment'
+description: 'Mirror the full vcvarsall.bat environment'
+inputs:
+  arch:
+    description: 'Target architecture (what is passed to vcvarsall, default follows runner OS)'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure MSVC Environment
+      shell: pwsh
+      run: |
+        # 1. Determine Architecture
+        $targetArch = "${{ inputs.arch }}".ToLower()
+        if (-not $targetArch) {
+            $targetArch = "$env:RUNNER_ARCH".ToLower()
+        }
+
+        # 2. Find vcvarsall.bat
+        $installPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        $vcvarsPath = Join-Path $installPath "VC\Auxiliary\Build\vcvarsall.bat"
+
+        if (-not (Test-Path $vcvarsPath)) {
+            Write-Error "vcvarsall.bat not found at $vcvarsPath"
+            exit 1
+        }
+
+        # 3. Run vcvarsall and capture environment variables
+        # Use an array for arguments. PowerShell will handle the quoting correctly.
+        $cmdArgs = @("/c", "(`"$vcvarsPath`" $targetArch) & echo. & set")
+        $envData = & cmd.exe @cmdArgs 2>&1
+        if ([string]::IsNullOrWhiteSpace($envData) -or $envData -match "is not recognized|Error in script usage") {
+            Write-Error "vcvarsall.bat failed to execute."
+            $envData
+            exit 1
+        }
+
+        # 4. Apply Environment Variables
+        foreach ($line in $envData) {
+            if ($line -match "^[^=]+=.+$") {
+                $line >> $Env:GITHUB_ENV
+            }
+        }
+
+        Write-Host "`nSuccessfully configured MSVC ($targetArch) environment.`n"
+        Write-Host $envData -Separator "`n"
