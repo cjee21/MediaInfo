@@ -101,6 +101,10 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
                     pendingFileUris.clear()
                 }
             }
+            ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE -> {
+                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED))
+                    openFile.launch("*/*")
+            }
         }
     }
 
@@ -541,6 +545,14 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
         }
 
         activityReportListBinding.addButton.setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (checkSelfPermission(android.Manifest.permission.ACCESS_MEDIA_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this@ReportListActivity,
+                        arrayOf(android.Manifest.permission.ACCESS_MEDIA_LOCATION),
+                        ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE)
+                    return@setOnClickListener
+                }
+            }
             openFile.launch("*/*")
         }
         activityReportListBinding.reportListLayout.clearBtn.setOnClickListener {
@@ -678,6 +690,7 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
 
     companion object {
         const val READ_EXTERNAL_STORAGE_PERMISSION_REQUEST = 50
+        const val ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE = 60
         const val OPEN_INTENT_PROCESSED = "net.mediaarea.mediainfo.internal.tag.Intent.Processed"
     }
 }
