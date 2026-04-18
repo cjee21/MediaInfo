@@ -94,7 +94,7 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
         when (requestCode) {
             READ_EXTERNAL_STORAGE_PERMISSION_REQUEST -> {
                 if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                    reportModel.addFiles(contentResolver, pendingFileUris)
+                    reportModel.addFiles(contentResolver, pendingFileUris.toList()) // Create a copy of pendingFileUris to avoid getting a cleared item in reportModel.addFiles@viewModelScope subroutine
                     pendingFileUris.clear()
                 } else {
                     // Abort all pending request
@@ -102,8 +102,11 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
                 }
             }
             ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE -> {
-                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED))
-                    openFile.launch("*/*")
+                openFile.launch("*/*") // Let's user open files anyway, even if the location data may be redacted out
+            }
+            ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_SENDFILE -> {
+                reportModel.addFiles(contentResolver, pendingFileUris.toList()) // Create a copy of pendingFileUris to avoid getting a cleared item in reportModel.addFiles@viewModelScope subroutine
+                pendingFileUris.clear()
             }
         }
     }
@@ -119,14 +122,27 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
     }
 
     private fun handleUri(uri: Uri, isMultiple: Boolean = false) {
-        if (uri.scheme == "file") {
-            if (Build.VERSION.SDK_INT >= 23) {
-                if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    pendingFileUris.add(uri)
-                    ActivityCompat.requestPermissions(this@ReportListActivity,
+        when (uri.scheme) {
+            "file" -> {
+                if (Build.VERSION.SDK_INT >= 23) {
+                    if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                        pendingFileUris.add(uri)
+                        ActivityCompat.requestPermissions(this@ReportListActivity,
                             arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
                             READ_EXTERNAL_STORAGE_PERMISSION_REQUEST)
-                    return
+                        return
+                    }
+                }
+            }
+            "content" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    if (checkSelfPermission(android.Manifest.permission.ACCESS_MEDIA_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                        pendingFileUris.add(uri)
+                        ActivityCompat.requestPermissions(this@ReportListActivity,
+                            arrayOf(android.Manifest.permission.ACCESS_MEDIA_LOCATION),
+                            ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_SENDFILE)
+                        return
+                    }
                 }
             }
         }
@@ -691,6 +707,7 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
     companion object {
         const val READ_EXTERNAL_STORAGE_PERMISSION_REQUEST = 50
         const val ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE = 60
+        const val ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_SENDFILE = 61
         const val OPEN_INTENT_PROCESSED = "net.mediaarea.mediainfo.internal.tag.Intent.Processed"
     }
 }
