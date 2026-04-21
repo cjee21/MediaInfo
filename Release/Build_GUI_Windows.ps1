@@ -62,6 +62,15 @@ Push-Location -Path "${release_directory}\..\Project\MSVC2022"
     MSBuild /restore "/p:RestorePackagesConfig=true;Configuration=Release;Platform=Win32" "/t:MediaInfo_PackageHelper" MediaInfo.sln
 Pop-Location
 
+### Build: Image assets and resources ###
+xcopy "${release_directory}\..\Source\Resource\Image\MSIX_Assets" "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\" /i /e /r /y
+Push-Location -Path "${release_directory}\..\Source\WindowsSparsePackage\Resources"
+    makepri new /o /pr "${release_directory}\..\Source\WindowsSparsePackage\Resources" /cf "${release_directory}\..\Source\WindowsSparsePackage\Resources\priconfig.xml"
+Pop-Location
+# For Windows 8 that does not support variations
+copy /y "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\SmallTile.scale-400_altform-colorful_theme-light.png" "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\SmallTile.png"
+copy /y "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\Square150x150Logo.scale-400_altform-colorful_theme-light.png" "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\Square150x150Logo.png"
+
 ### Build: zlib BCB library ###
 Push-Location -Path "${release_directory}\..\..\zlib\contrib\BCB"
     MSBuild "/p:Configuration=Release;Platform=${arch_bcb}" zlib.cbproj
