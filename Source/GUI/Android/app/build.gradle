@@ -1,10 +1,9 @@
 apply plugin: 'com.android.application'
 apply plugin: 'com.google.devtools.ksp'
-apply plugin: 'kotlin-android'
 
+import com.android.build.api.variant.FilterConfiguration
 import groovy.xml.XmlParser
 import groovy.xml.XmlUtil
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 android {
     buildFeatures {
@@ -25,8 +24,7 @@ android {
         }
         externalNativeBuild {
             cmake {
-                arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
-                        "-DENABLE_UNICODE=ON",
+                arguments "-DENABLE_UNICODE=ON",
                         "-DMEDIAINFO_ADVANCED=OFF",
                         "-DMEDIAINFO_AES=OFF",
                         "-DMEDIAINFO_DEMUX=OFF",
@@ -101,18 +99,20 @@ android {
         targetCompatibility JavaVersion.VERSION_21
         sourceCompatibility JavaVersion.VERSION_21
     }
-    kotlin {
-        compilerOptions {
-            jvmTarget = JvmTarget.JVM_21
-        }
-    }
-    def abiCodes = ['armeabi-v7a':1, 'arm64-v8a':2, 'x86':3, 'x86_64':4]
-    android.applicationVariants.configureEach { variant ->
+}
+
+androidComponents {
+    def abiCodes = ['armeabi-v7a': 1, 'arm64-v8a': 2, 'x86': 3, 'x86_64': 4]
+    onVariants(selector().all()) { variant ->
         // Assigns a different version code for each output APK.
-        variant.outputs.each {
-            output ->
-                def abiName = output.getFilter('ABI')
-                output.versionCodeOverride = variant.versionCode * 10 + abiCodes.get(abiName, 0)
+        variant.outputs.forEach { output ->
+            def abiFilter = output.filters.find { it.filterType == FilterConfiguration.FilterType.ABI }
+            def abiName = abiFilter?.identifier
+            def currentCode = output.versionCode.getOrElse(0)
+            def offset = 0
+            if (abiName != null)
+                offset = abiCodes.get(abiName, 0)
+            output.versionCode.set(currentCode * 10 + offset)
         }
     }
 }
@@ -202,16 +202,13 @@ tasks.register('copyLocales', DefaultTask) {
 preBuild.dependsOn copyLocales
 
 dependencies {
-    implementation fileTree(include: ['*.jar'], dir: 'libs')
-    implementation 'androidx.multidex:multidex:2.0.1'
     implementation 'com.google.android.material:material:1.13.0'
     implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation "androidx.core:core-ktx:1.17.0" // can only upgrade when minSdkVersion >= 23
+    implementation 'androidx.documentfile:documentfile:1.1.0'
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
-    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
-    implementation 'com.android.support:design:34.2.0'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test:runner:1.7.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
