@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 
@@ -32,6 +33,7 @@ class SettingsActivity : AppCompatActivity(), SettingsActivityListener {
         activitySettingsBinding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(activitySettingsBinding.root)
 
+        WindowCompat.enableEdgeToEdge(window)
         ViewCompat.setOnApplyWindowInsetsListener(activitySettingsBinding.appBar) { v: View, insets: WindowInsetsCompat ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     or WindowInsetsCompat.Type.displayCutout())
@@ -40,15 +42,17 @@ class SettingsActivity : AppCompatActivity(), SettingsActivityListener {
                 top = bars.top,
                 right = bars.right,
             )
-            WindowInsetsCompat.CONSUMED
+            insets
         }
         ViewCompat.setOnApplyWindowInsetsListener(activitySettingsBinding.settingsContainer) { v: View, insets: WindowInsetsCompat ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     or WindowInsetsCompat.Type.displayCutout())
             v.updatePadding(
+                left = bars.left,
+                right = bars.right,
                 bottom = bars.bottom,
             )
-            WindowInsetsCompat.CONSUMED
+            insets
         }
 
         setSupportActionBar(activitySettingsBinding.toolbar)

@@ -17,6 +17,7 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.view.updatePadding
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -457,6 +458,7 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
         activityReportListBinding = ActivityReportListBinding.inflate(layoutInflater)
         helloLayoutBinding = HelloLayoutBinding.inflate(layoutInflater)
 
+        WindowCompat.enableEdgeToEdge(window)
         ViewCompat.setOnApplyWindowInsetsListener(activityReportListBinding.appBar) { v: View, insets: WindowInsetsCompat ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     or WindowInsetsCompat.Type.displayCutout())
@@ -465,15 +467,17 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
                 top = bars.top,
                 right = bars.right,
             )
-            WindowInsetsCompat.CONSUMED
+            insets
         }
         ViewCompat.setOnApplyWindowInsetsListener(activityReportListBinding.frameLayout) { v: View, insets: WindowInsetsCompat ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     or WindowInsetsCompat.Type.displayCutout())
             v.updatePadding(
+                left = bars.left,
+                right = bars.right,
                 bottom = bars.bottom,
             )
-            WindowInsetsCompat.CONSUMED
+            insets
         }
 
         setContentView(activityReportListBinding.root)
