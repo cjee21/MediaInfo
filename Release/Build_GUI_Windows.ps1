@@ -68,8 +68,8 @@ Push-Location -Path "${release_directory}\..\Source\WindowsSparsePackage\Resourc
     makepri new /o /pr "${release_directory}\..\Source\WindowsSparsePackage\Resources" /cf "${release_directory}\..\Source\WindowsSparsePackage\Resources\priconfig.xml"
 Pop-Location
 # For Windows 8 that does not support variations
-copy /y "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\SmallTile.scale-400_altform-colorful_theme-light.png" "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\SmallTile.png"
-copy /y "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\Square150x150Logo.scale-400_altform-colorful_theme-light.png" "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\Square150x150Logo.png"
+Copy-Item -Force -Path "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\SmallTile.scale-400_altform-colorful_theme-light.png" -Destination "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\SmallTile.png"
+Copy-Item -Force -Path "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\Square150x150Logo.scale-400_altform-colorful_theme-light.png" -Destination "${release_directory}\..\Source\WindowsSparsePackage\Resources\Assets\Square150x150Logo.png"
 
 ### Build: zlib BCB library ###
 Push-Location -Path "${release_directory}\..\..\zlib\contrib\BCB"
