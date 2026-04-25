@@ -45,6 +45,9 @@ install-data-hook:
 	install -dm 755 $(DESTDIR)$(datadir)/kservices5/ServiceMenus && \
 	install -m 644 mediainfo-gui.kde4.desktop \
 	               $(DESTDIR)$(datadir)/kservices5/ServiceMenus/mediainfo-gui.desktop && \
+	install -dm 755 $(DESTDIR)$(datadir)/kio/servicemenus && \
+	install -m 644 mediainfo-gui.kde6.desktop \
+	               $(DESTDIR)$(datadir)/kio/servicemenus/mediainfo-gui.desktop && \
 	install -dm 755 $(DESTDIR)$(datadir)/icons/hicolor/256x256/apps && \
 	install -m 644 ../../../Source/Resource/Image/MediaInfo.png \
 	               $(DESTDIR)$(datadir)/icons/hicolor/256x256/apps/mediainfo.png && \
@@ -59,6 +62,7 @@ uninstall-local:
 	( cd '$(DESTDIR)$(datadir)/apps/konqueror/servicemenus' && rm -f mediainfo-gui.desktop ) && \
 	( cd '$(DESTDIR)$(datadir)/kde4/services/ServiceMenus' && rm -f mediainfo-gui.desktop ) && \
 	( cd '$(DESTDIR)$(datadir)/kservices5/ServiceMenus' && rm -f mediainfo-gui.desktop ) && \
+	( cd '$(DESTDIR)$(datadir)/kio/servicemenus' && rm -f mediainfo-gui.desktop ) && \
 	( cd '$(DESTDIR)$(datadir)/icons/hicolor/256x256/apps' && rm -f mediainfo.png ) && \
 	( cd '$(DESTDIR)$(datadir)/icons/hicolor/scalable/apps' && rm -f mediainfo.svg ) && \
 	( cd '$(DESTDIR)$(datadir)/pixmaps' && rm -f mediainfo.xpm )
