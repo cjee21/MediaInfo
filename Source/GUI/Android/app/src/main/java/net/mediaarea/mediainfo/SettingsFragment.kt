@@ -11,13 +11,13 @@ import android.content.res.Resources
 import android.os.Bundle
 import android.os.Build
 import android.provider.Settings
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.net.toUri
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
 import androidx.preference.DropDownPreference
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yariksoffice.lingver.Lingver
 import java.util.*
 import android.content.pm.PackageManager
@@ -159,7 +159,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun showGeolocationHelpDialog() {
         val context = context ?: return
-        AlertDialog.Builder(context)
+        MaterialAlertDialogBuilder(context)
             .setTitle(R.string.permissions_geolocation_title)
             .setMessage(R.string.permissions_geolocation_help)
             .setPositiveButton(android.R.string.ok) { _, _ ->

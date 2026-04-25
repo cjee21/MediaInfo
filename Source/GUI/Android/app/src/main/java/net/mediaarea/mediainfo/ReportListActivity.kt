@@ -13,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -26,6 +25,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager.getDefaultSharedPreferences
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 import android.annotation.SuppressLint
 import android.os.Build
@@ -39,6 +39,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.provider.Settings
 import android.view.*
 
 import io.reactivex.disposables.CompositeDisposable
@@ -94,6 +95,15 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // If user wants to enable ACCESS_MEDIA_LOCATION permission, but the prompt has been blocked
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            && permissions[0] == android.Manifest.permission.ACCESS_MEDIA_LOCATION
+            && grantResults[0] == PackageManager.PERMISSION_DENIED
+            && !shouldShowRequestPermissionRationale(permissions[0])) {
+            showGeolocationHelpDialog()
+            pendingFileUris.clear()
+            return
+        }
         when (requestCode) {
             READ_EXTERNAL_STORAGE_PERMISSION_REQUEST -> {
                 if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
@@ -105,13 +115,31 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
                 }
             }
             ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE -> {
-                openFile.launch("*/*") // Let's user open files anyway, even if the location data may be redacted out
+                openFile.launch("*/*") // Lets user open files anyway, even if the location data may be redacted out
             }
             ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_SENDFILE -> {
                 reportModel.addFiles(contentResolver, pendingFileUris.toList()) // Create a copy of pendingFileUris to avoid getting a cleared item in reportModel.addFiles@viewModelScope subroutine
                 pendingFileUris.clear()
             }
         }
+    }
+
+    private fun openPermissionsSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        intent.addCategory(Intent.CATEGORY_DEFAULT)
+        intent.data = "package:${this.packageName}".toUri()
+        startActivity(intent)
+    }
+
+    private fun showGeolocationHelpDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.permissions_geolocation_title)
+            .setMessage(R.string.permissions_geolocation_help)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                openPermissionsSettings()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -162,7 +190,7 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
 
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun requestMediaLocationPermission(requestCode: Int) {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.permissions_geolocation_title)
             .setMessage(R.string.permissions_geolocation_summary)
             .setPositiveButton(android.R.string.ok) { _, _ ->
@@ -172,7 +200,17 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
                     requestCode
                 )
             }
-            .setNegativeButton(android.R.string.cancel, null)
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                when (requestCode) {
+                    ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE -> {
+                        openFile.launch("*/*") // Lets user open files anyway, even if the location data may be redacted out
+                    }
+                    ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_SENDFILE -> {
+                        reportModel.addFiles(contentResolver, pendingFileUris.toList()) // Create a copy of pendingFileUris to avoid getting a cleared item in reportModel.addFiles@viewModelScope subroutine
+                        pendingFileUris.clear()
+                    }
+                }
+            }
             .show()
     }
 
