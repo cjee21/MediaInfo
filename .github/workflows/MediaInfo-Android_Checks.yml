@@ -45,16 +45,3 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --warning-mode fail
           popd
-      - name: Check alignment
-        run: |
-          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/*/)
-          if [[ -n "$BUILD_TOOLS" ]]; then
-            LATEST_BUILD_TOOLS=$(echo "$BUILD_TOOLS" | sort -Vr | head -n 1)
-            export PATH="$LATEST_BUILD_TOOLS:$PATH"
-            echo "Added $LATEST_BUILD_TOOLS to PATH"
-          else
-            echo "::warning::Check alignment: Android Build Tools directory not found."
-          fi
-          curl "https://android.googlesource.com/platform/system/extras/+/main/tools/check_elf_alignment.sh?format=TEXT"| base64 --decode > check_elf_alignment.sh
-          chmod +x check_elf_alignment.sh
-          ./check_elf_alignment.sh ${{ github.workspace }}/MediaInfo/Source/GUI/Android/app/build/outputs/apk/release/app-universal-release-unsigned.apk

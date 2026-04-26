@@ -10,6 +10,7 @@ import kotlin.jvm.*
 import kotlinx.coroutines.launch
 
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
@@ -25,6 +26,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager.getDefaultSharedPreferences
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 import android.annotation.SuppressLint
 import android.os.Build
@@ -38,6 +40,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.provider.Settings
 import android.view.*
 
 import io.reactivex.disposables.CompositeDisposable
@@ -69,6 +72,7 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
     private var twoPane: Boolean = false
     private var reports: List<Report> = listOf()
     private val pendingFileUris: MutableList<Uri> = mutableListOf()
+    private val pendingIntents: MutableList<Intent> = mutableListOf()
 
     private val openFile = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isNotEmpty())
@@ -92,17 +96,51 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // If user wants to enable ACCESS_MEDIA_LOCATION permission, but the prompt has been blocked
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            && permissions[0] == android.Manifest.permission.ACCESS_MEDIA_LOCATION
+            && grantResults[0] == PackageManager.PERMISSION_DENIED
+            && !shouldShowRequestPermissionRationale(permissions[0])) {
+            showGeolocationHelpDialog()
+            pendingFileUris.clear()
+            return
+        }
         when (requestCode) {
             READ_EXTERNAL_STORAGE_PERMISSION_REQUEST -> {
                 if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                    reportModel.addFiles(contentResolver, pendingFileUris)
+                    reportModel.addFiles(contentResolver, pendingFileUris.toList()) // Create a copy of pendingFileUris to avoid getting a cleared item in reportModel.addFiles@viewModelScope subroutine
                     pendingFileUris.clear()
                 } else {
                     // Abort all pending request
                     pendingFileUris.clear()
                 }
             }
+            ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE -> {
+                openFile.launch("*/*") // Lets user open files anyway, even if the location data may be redacted out
+            }
+            ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_SENDFILE -> {
+                reportModel.addFiles(contentResolver, pendingFileUris.toList()) // Create a copy of pendingFileUris to avoid getting a cleared item in reportModel.addFiles@viewModelScope subroutine
+                pendingFileUris.clear()
+            }
         }
+    }
+
+    private fun openPermissionsSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        intent.addCategory(Intent.CATEGORY_DEFAULT)
+        intent.data = "package:${this.packageName}".toUri()
+        startActivity(intent)
+    }
+
+    private fun showGeolocationHelpDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.permissions_geolocation_title)
+            .setMessage(R.string.permissions_geolocation_help)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                openPermissionsSettings()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -112,22 +150,69 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleIntent(intent)
+
+        pendingIntents.add(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        for (intent in pendingIntents) {
+            handleIntent(intent)
+        }
+        pendingIntents.clear()
     }
 
     private fun handleUri(uri: Uri, isMultiple: Boolean = false) {
-        if (uri.scheme == "file") {
-            if (Build.VERSION.SDK_INT >= 23) {
-                if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    pendingFileUris.add(uri)
-                    ActivityCompat.requestPermissions(this@ReportListActivity,
+        when (uri.scheme) {
+            "file" -> {
+                if (Build.VERSION.SDK_INT >= 23) {
+                    if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                        pendingFileUris.add(uri)
+                        ActivityCompat.requestPermissions(this@ReportListActivity,
                             arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
                             READ_EXTERNAL_STORAGE_PERMISSION_REQUEST)
-                    return
+                        return
+                    }
+                }
+            }
+            "content" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    if (checkSelfPermission(android.Manifest.permission.ACCESS_MEDIA_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                        pendingFileUris.add(uri)
+                        requestMediaLocationPermission(ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_SENDFILE)
+                        return
+                    }
                 }
             }
         }
         reportModel.addFiles(contentResolver, listOf(uri), isMultiple)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun requestMediaLocationPermission(requestCode: Int) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.permissions_geolocation_title)
+            .setMessage(R.string.permissions_geolocation_summary)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                ActivityCompat.requestPermissions(
+                    this@ReportListActivity,
+                    arrayOf(android.Manifest.permission.ACCESS_MEDIA_LOCATION),
+                    requestCode
+                )
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                when (requestCode) {
+                    ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE -> {
+                        openFile.launch("*/*") // Lets user open files anyway, even if the location data may be redacted out
+                    }
+                    ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_SENDFILE -> {
+                        reportModel.addFiles(contentResolver, pendingFileUris.toList()) // Create a copy of pendingFileUris to avoid getting a cleared item in reportModel.addFiles@viewModelScope subroutine
+                        pendingFileUris.clear()
+                    }
+                }
+            }
+            .show()
     }
 
     private fun handleIntent(intent: Intent) {
@@ -545,6 +630,12 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
         }
 
         activityReportListBinding.addButton.setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (checkSelfPermission(android.Manifest.permission.ACCESS_MEDIA_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    requestMediaLocationPermission(ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE)
+                    return@setOnClickListener
+                }
+            }
             openFile.launch("*/*")
         }
         activityReportListBinding.reportListLayout.clearBtn.setOnClickListener {
@@ -682,6 +773,8 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
 
     companion object {
         const val READ_EXTERNAL_STORAGE_PERMISSION_REQUEST = 50
+        const val ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_OPENFILE = 60
+        const val ACCESS_MEDIA_LOCATION_PERMISSION_REQUEST_SENDFILE = 61
         const val OPEN_INTENT_PROCESSED = "net.mediaarea.mediainfo.internal.tag.Intent.Processed"
     }
 }

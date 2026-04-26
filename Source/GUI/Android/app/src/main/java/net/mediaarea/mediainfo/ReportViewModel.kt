@@ -21,8 +21,12 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.rx2.await
 import kotlinx.coroutines.withContext
@@ -30,8 +34,14 @@ import java.io.File
 
 class ReportViewModel(private val dataSource: ReportDao) : ViewModel() {
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading = _isLoading.asStateFlow()
+    private val _loadingCount = MutableStateFlow(0)
+    val isLoading: StateFlow<Boolean> = _loadingCount
+        .map { count -> count > 0 }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed((5000)),
+            initialValue = false
+        )
 
     private val _navigateToReport = MutableSharedFlow<Int>()
     val navigateToReport = _navigateToReport.asSharedFlow()
@@ -43,7 +53,7 @@ class ReportViewModel(private val dataSource: ReportDao) : ViewModel() {
         dispatcher: CoroutineDispatcher = Dispatchers.IO
     ) {
         viewModelScope.launch {
-            _isLoading.value = true
+            _loadingCount.update { it + 1 }
 
             withContext(dispatcher) {
                 for (uri in uris) {
@@ -104,7 +114,7 @@ class ReportViewModel(private val dataSource: ReportDao) : ViewModel() {
                 }
             }
 
-            _isLoading.value = false
+            _loadingCount.update { it - 1 }
         }
     }
 
