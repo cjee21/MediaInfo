@@ -38,9 +38,13 @@ jobs:
         uses: actions/checkout@v6
         with:
           path: MediaInfo
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'jetbrains'
+          java-version: ${{ env.JAVA_VER }}
       - name: Build APKs
         run: |
-          export JAVA_HOME="$JAVA_HOME_${{ env.JAVA_VER }}_X64"
           pushd ${{ github.workspace }}/MediaInfo/Source/GUI/Android
           chmod +x gradlew
           ./gradlew assembleRelease --warning-mode fail
