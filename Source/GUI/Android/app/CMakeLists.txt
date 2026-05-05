@@ -12,6 +12,20 @@ set(BUILD_ZENLIB ON CACHE BOOL "Build bundled ZenLib" FORCE)
 
 add_subdirectory(../../../../../MediaInfoLib/Project/CMake ${CMAKE_CURRENT_BINARY_DIR}/MediaInfoLib)
 
+target_link_options(mediainfo
+        PRIVATE
+        -Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/libmediainfo.map.txt
+        # This causes the linker to emit an error when a version script names a
+        # symbol that is not found, rather than silently ignoring that line.
+        -Wl,--no-undefined-version
+)
+
+# Without this, changes to the version script will not cause the library to relink.
+set_target_properties(mediainfo
+        PROPERTIES
+        LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/libmediainfo.map.txt
+)
+
 # disable warning in aes_via_ace.h for x86 arch
 if(NOT "${CMAKE_VERSION}" VERSION_LESS "3.18")
     set_property(
