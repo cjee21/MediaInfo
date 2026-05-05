@@ -30,7 +30,7 @@
             android:id="@+id/clear_btn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#FFCCCCCC"
+            android:textColor="@color/md_theme_onSurfaceVariant"
             android:text="@string/clear_text"
             android:layout_gravity="center"
             style="@style/Widget.AppCompat.Button.Borderless" />
