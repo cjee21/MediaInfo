@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -42,6 +43,7 @@ import android.content.res.Configuration
 import android.content.res.Resources
 import android.provider.Settings
 import android.view.*
+import androidx.core.view.updateLayoutParams
 
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
@@ -564,6 +566,14 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
             )
             insets
         }
+        ViewCompat.setOnApplyWindowInsetsListener(activityReportListBinding.addButton) { v: View, insets: WindowInsetsCompat ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                    or WindowInsetsCompat.Type.displayCutout())
+            v.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = bars.bottom + resources.getDimensionPixelSize(R.dimen.button_margin)
+            }
+            insets
+        }
 
         setContentView(activityReportListBinding.root)
 
@@ -673,6 +683,15 @@ class ReportListActivity : AppCompatActivity(), ReportActivityListener {
                     .detach(fragment)
                     .commit()
             }
+        }
+
+        val addButtonParams = activityReportListBinding.addButton.layoutParams as CoordinatorLayout.LayoutParams
+        if (twoPane) {
+            addButtonParams.anchorId = R.id.report_list_scrollview
+            addButtonParams.gravity = Gravity.BOTTOM or Gravity.START
+        } else {
+            addButtonParams.anchorId = R.id.report_list_layout
+            addButtonParams.gravity = Gravity.BOTTOM or Gravity.END
         }
 
         setupRecyclerView(activityReportListBinding.reportListLayout.reportList)

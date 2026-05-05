@@ -34,5 +34,8 @@
             android:text="@string/clear_text"
             android:layout_gravity="center"
             style="@style/Widget.AppCompat.Button.Borderless" />
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/button_bottom_clearance" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
