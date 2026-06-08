@@ -11,6 +11,8 @@ jobs:
             Format_Profile: Shared object / AMD x86-64
           - os: ubuntu-24.04-arm
             Format_Profile: Shared object / ARM64
+          - os: ubuntu-24.04-riscv
+            Format_Profile: Shared object / RISC-V 64-bit
           - os: macos-latest
             Format_Profile: Demand paged executable / ARM64
       fail-fast: false
@@ -70,6 +72,11 @@ jobs:
             echo "::error::Test CLI: MediaInfo CLI output ($actual_output) is not as expected ($expected_output)"
             exit 1
           fi
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: mediainfo-cli-${{ matrix.os }}
+          path: Project/GNU/CLI/.libs/mediainfo
       - name: Configure GUI
         run: |
           cd Project/GNU/GUI
