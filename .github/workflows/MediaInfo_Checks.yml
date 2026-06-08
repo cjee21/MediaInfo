@@ -15,6 +15,8 @@ jobs:
             Format_Profile: Shared object / AMD x86-64
           - os: ubuntu-26.04-arm
             Format_Profile: Shared object / ARM64
+          - os: ubuntu-24.04-riscv
+            Format_Profile: Shared object / RISC-V 64-bit
           - os: macos-26
             Format_Profile: Demand paged executable / ARM64
       fail-fast: false
@@ -94,6 +96,11 @@ jobs:
         run: |
           cd Project/GNU/CLI
           make check
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: mediainfo-cli-${{ matrix.os }}
+          path: Project/GNU/CLI/.libs/mediainfo
       - name: Configure GUI
         run: |
           cd Project/GNU/GUI
